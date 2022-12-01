@@ -5,11 +5,10 @@
 #include <time.h>
 
 
-MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.1, RusJJ)
+MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.1.1, RusJJ)
 
 // Savings
-uintptr_t pGTASA;
-void* hGTASA;
+void* hGame;
 
 // Game Vars
 char *ms_nGameClockHours, *ms_nGameClockMinutes;
@@ -34,12 +33,11 @@ DECL_HOOK(void, ClockInit, unsigned int msPerMin)
 
 extern "C" void OnModLoad()
 {
-    logger->SetTag("GTARealTime");
-    pGTASA = aml->GetLib("libGTASA.so");
-    hGTASA = dlopen("libGTASA.so", RTLD_LAZY);
+    hGame = dlopen("libGTASA.so", RTLD_LAZY);
+    if(hGame == NULL) hGame = dlopen("libGTAVC.so", RTLD_LAZY);
 
-    HOOK(ClockUpdate, aml->GetSym(hGTASA, "_ZN6CClock6UpdateEv"));
-    HOOK(ClockInit, aml->GetSym(hGTASA, "_ZN6CClock10InitialiseEj"));
-    SET_TO(ms_nGameClockHours, aml->GetSym(hGTASA, "_ZN6CClock18ms_nGameClockHoursE"));
-    SET_TO(ms_nGameClockMinutes, aml->GetSym(hGTASA, "_ZN6CClock20ms_nGameClockMinutesE"));
+    HOOK(ClockUpdate, aml->GetSym(hGame, "_ZN6CClock6UpdateEv"));
+    HOOK(ClockInit, aml->GetSym(hGame, "_ZN6CClock10InitialiseEj"));
+    SET_TO(ms_nGameClockHours, aml->GetSym(hGame, "_ZN6CClock18ms_nGameClockHoursE"));
+    SET_TO(ms_nGameClockMinutes, aml->GetSym(hGame, "_ZN6CClock20ms_nGameClockMinutesE"));
 }
