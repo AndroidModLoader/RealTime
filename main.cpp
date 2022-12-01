@@ -5,8 +5,7 @@
 #include <time.h>
 
 
-MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.0, RusJJ)
-NEEDGAME(com.rockstargames.gtasa)
+MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.1, RusJJ)
 
 // Savings
 uintptr_t pGTASA;
@@ -28,6 +27,10 @@ DECL_HOOK(void, ClockUpdate, void* self)
     *ms_nGameClockHours = (char)(tm_struct->tm_hour);
     *ms_nGameClockMinutes = (char)(tm_struct->tm_min);
 }
+DECL_HOOK(void, ClockInit, unsigned int msPerMin)
+{
+    ClockInit(60000); // I was so lazy to patch it so i just hooked it...
+}
 
 extern "C" void OnModLoad()
 {
@@ -36,6 +39,7 @@ extern "C" void OnModLoad()
     hGTASA = dlopen("libGTASA.so", RTLD_LAZY);
 
     HOOK(ClockUpdate, aml->GetSym(hGTASA, "_ZN6CClock6UpdateEv"));
+    HOOK(ClockInit, aml->GetSym(hGTASA, "_ZN6CClock10InitialiseEj"));
     SET_TO(ms_nGameClockHours, aml->GetSym(hGTASA, "_ZN6CClock18ms_nGameClockHoursE"));
     SET_TO(ms_nGameClockMinutes, aml->GetSym(hGTASA, "_ZN6CClock20ms_nGameClockMinutesE"));
 }
