@@ -1,65 +1,86 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
 #include <mod/config.h>
-#include <dlfcn.h>
 #include <time.h>
 
 
-MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.1.2, RusJJ)
+MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.2, RusJJ)
 
 // Savings
 void* hGame;
+int lastDay;
 
 // Game Vars
-char *ms_nGameClockHours, *ms_nGameClockMinutes, *ms_nGameClockSeconds;
+char *CurrentDay, *ms_nGameClockMonths, *ms_nGameClockDays, *ms_nGameClockHours, *ms_nGameClockMinutes, *ms_nGameClockSeconds;
 unsigned int *ms_nMillisecondsPerGameMinute;
+int *DaysPassed;
+
+// Game Funcs
+void (*IncrementStat)(uint16_t, float);
+
+// Helpers
+inline struct tm* Now()
+{
+    time_t tmp = time(NULL);
+    return localtime(&tmp);
+}
 
 // Hooks
-DECL_HOOKv(ClockUpdate, void* self)
+DECL_HOOKv(ClockUpdate_SA, void* self)
 {
-    time_t now = time(NULL);
-    struct tm* t = localtime(&now);
-    bool bTimeFine = (*ms_nGameClockHours == t->tm_hour) &&
-                     (*ms_nGameClockMinutes == t->tm_min) &&
-                     (*ms_nGameClockSeconds >= t->tm_sec - 1) && (*ms_nGameClockSeconds <= t->tm_sec + 1);
+    auto now = Now();
     
-    if(!bTimeFine)
-    {
-        *ms_nGameClockHours = (char)(t->tm_hour);
-        *ms_nGameClockMinutes = (char)(t->tm_min);
-        *ms_nGameClockSeconds = (char)(t->tm_sec);
-    }
-    ClockUpdate(self);
-    /*if(!bTimeFine)
-    {
-        *ms_nGameClockHours = (char)(t->tm_hour);
-        *ms_nGameClockMinutes = (char)(t->tm_min);
-        *ms_nGameClockSeconds = (char)(t->tm_sec);
-    }*/
+    if(now->tm_yday != lastDay) IncrementStat(0x86, 1.0f);
+    lastDay = now->tm_yday;
+
+	*CurrentDay = now->tm_wday + 1;
+    *ms_nGameClockMonths = now->tm_mon + 1;
+	*ms_nGameClockDays = now->tm_mday;
+	*ms_nGameClockHours = now->tm_hour;
+    *ms_nGameClockMinutes = now->tm_min;
+    *ms_nGameClockSeconds = now->tm_sec;
 }
-DECL_HOOKv(ClockInit, unsigned int msPerMin)
+DECL_HOOKv(ClockUpdate_VC, void* self)
 {
-    ClockInit(60000); // I was so lazy to patch it so i just hooked it...
-}
-DECL_HOOKv(GenericLoad)
-{
-    GenericLoad();
-    *ms_nMillisecondsPerGameMinute = 60000;
+    auto now = Now();
+
+    if(now->tm_yday != lastDay) ++(*DaysPassed);
+    lastDay = now->tm_yday;
+
+    *ms_nGameClockHours = now->tm_hour;
+    *ms_nGameClockMinutes = now->tm_min;
+    *ms_nGameClockSeconds = now->tm_sec;
 }
 
 extern "C" void OnModLoad()
 {
-    hGame = dlopen("libGTASA.so", RTLD_LAZY);
-    if(hGame == NULL)
+    hGame = aml->GetLibHandle("libGTASA.so");
+    if(hGame != NULL)
     {
-        hGame = dlopen("libGTAVC.so", RTLD_LAZY);
-        HOOK(GenericLoad,        aml->GetSym(hGame, "_Z11GenericLoadv"));
+        SET_TO(CurrentDay, aml->GetSym(hGame, "_ZN6CClock10CurrentDayE"));
+        SET_TO(ms_nGameClockMonths, aml->GetSym(hGame, "_ZN6CClock19ms_nGameClockMonthsE"));
+        SET_TO(ms_nGameClockDays, aml->GetSym(hGame, "_ZN6CClock17ms_nGameClockDaysE"));
+        SET_TO(IncrementStat, aml->GetSym(hGame, "_ZN6CStats13IncrementStatEtf"));
+        HOOK(ClockUpdate_SA, aml->GetSym(hGame, "_ZN6CClock6UpdateEv"));
     }
-
-    HOOK(ClockUpdate,            aml->GetSym(hGame, "_ZN6CClock6UpdateEv"));
-    HOOK(ClockInit,              aml->GetSym(hGame, "_ZN6CClock10InitialiseEj"));
+    else
+    {
+        hGame = aml->GetLibHandle("libGTAVC.so");
+        if(hGame == NULL) hGame = aml->GetLibHandle("libR1.so");
+        if(hGame != NULL)
+        {
+            HOOK(ClockUpdate_VC, aml->GetSym(hGame, "_ZN6CClock6UpdateEv"));
+            SET_TO(DaysPassed, aml->GetSym(hGame, "_ZN6CStats10DaysPassedE"));
+        }
+        else
+        {
+            logger->Error("The game is not supported!");
+            return;
+        }
+    }
     SET_TO(ms_nGameClockHours,   aml->GetSym(hGame, "_ZN6CClock18ms_nGameClockHoursE"));
     SET_TO(ms_nGameClockMinutes, aml->GetSym(hGame, "_ZN6CClock20ms_nGameClockMinutesE"));
     SET_TO(ms_nGameClockSeconds, aml->GetSym(hGame, "_ZN6CClock20ms_nGameClockSecondsE"));
-    SET_TO(ms_nMillisecondsPerGameMinute, aml->GetSym(hGame, "_ZN6CClock29ms_nMillisecondsPerGameMinuteE"));
+
+    lastDay = Now()->tm_yday;
 }
