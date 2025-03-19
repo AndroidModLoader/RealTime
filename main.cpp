@@ -1,10 +1,9 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
-#include <mod/config.h>
 #include <time.h>
 
 
-MYMODCFG(net.rusjj.realtime, GTA Real Time, 1.2, RusJJ)
+MYMOD(net.rusjj.realtime, GTA Real Time, 1.3, RusJJ)
 
 // Savings
 void* hGame;
@@ -26,7 +25,7 @@ inline struct tm* Now()
 }
 
 // Hooks
-DECL_HOOKv(ClockUpdate_SA, void* self)
+DECL_HOOKv(ClockUpdate_SA)
 {
     auto now = Now();
     
@@ -40,7 +39,7 @@ DECL_HOOKv(ClockUpdate_SA, void* self)
     *ms_nGameClockMinutes = now->tm_min;
     *ms_nGameClockSeconds = now->tm_sec;
 }
-DECL_HOOKv(ClockUpdate_VC, void* self)
+DECL_HOOKv(ClockUpdate_VC)
 {
     auto now = Now();
 
@@ -54,6 +53,7 @@ DECL_HOOKv(ClockUpdate_VC, void* self)
 
 extern "C" void OnModLoad()
 {
+    logger->SetTag(modinfo->Name());
     hGame = aml->GetLibHandle("libGTASA.so");
     if(hGame != NULL)
     {
